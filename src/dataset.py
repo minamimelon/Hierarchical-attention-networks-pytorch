@@ -1,11 +1,11 @@
-"""
-@author: Viet Nguyen <nhviet1009@gmail.com>
-"""
 import pandas as pd
 from torch.utils.data.dataset import Dataset
+import json
 import csv
 from nltk.tokenize import sent_tokenize, word_tokenize
 import numpy as np
+from tqdm import tqdm
+from multiprocessing import Pool
 
 
 class MyDataset(Dataset):
@@ -14,15 +14,12 @@ class MyDataset(Dataset):
         super(MyDataset, self).__init__()
 
         texts, labels = [], []
-        with open(data_path) as csv_file:
-            reader = csv.reader(csv_file, quotechar='"')
-            for idx, line in enumerate(reader):
-                text = ""
-                for tx in line[1:]:
-                    text += tx.lower()
-                    text += " "
-                label = int(line[0]) - 1
-                texts.append(text)
+        with open(data_path) as file:
+            lines = file.readlines()
+            for idx, line in enumerate(lines):
+                js = json.loads(line)
+                label = int(js["stars"]) - 1
+                texts.append(js["text"])
                 labels.append(label)
 
         self.texts = texts
@@ -33,12 +30,10 @@ class MyDataset(Dataset):
         self.max_length_sentences = max_length_sentences
         self.max_length_word = max_length_word
         self.num_classes = len(set(self.labels))
-
-    def __len__(self):
-        return len(self.labels)
-
-    def __getitem__(self, index):
-        label = self.labels[index]
+        with Pool(30) as p:
+            self.document_encode = [x for x in p.map(self.get_code, range(len(self.labels)))]
+            
+    def get_code(self, index):
         text = self.texts[index]
         document_encode = [
             [self.dict.index(word) if word in self.dict else -1 for word in word_tokenize(text=sentences)] for sentences
@@ -52,18 +47,19 @@ class MyDataset(Dataset):
 
         if len(document_encode) < self.max_length_sentences:
             extended_sentences = [[-1 for _ in range(self.max_length_word)] for _ in
-                                  range(self.max_length_sentences - len(document_encode))]
+                                range(self.max_length_sentences - len(document_encode))]
             document_encode.extend(extended_sentences)
 
         document_encode = [sentences[:self.max_length_word] for sentences in document_encode][
-                          :self.max_length_sentences]
+                        :self.max_length_sentences]
 
         document_encode = np.stack(arrays=document_encode, axis=0)
         document_encode += 1
+        return document_encode
+    
+    def __len__(self):
+        return len(self.labels)
 
-        return document_encode.astype(np.int64), label
-
-
-if __name__ == '__main__':
-    test = MyDataset(data_path="../data/test.csv", dict_path="../data/glove.6B.50d.txt")
-    print (test.__getitem__(index=1)[0].shape)
+    def __getitem__(self, index):
+        label = self.labels[index]
+        return self.document_encode[index].astype(np.int64), label

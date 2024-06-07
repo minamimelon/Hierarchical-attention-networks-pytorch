@@ -1,10 +1,5 @@
-"""
-@author: Viet Nguyen <nhviet1009@gmail.com>
-"""
 import torch
-import sys
-import csv
-csv.field_size_limit(sys.maxsize)
+import json
 from nltk.tokenize import sent_tokenize, word_tokenize
 from sklearn import metrics
 import numpy as np
@@ -48,13 +43,11 @@ def element_wise_mul(input1, input2):
 def get_max_lengths(data_path):
     word_length_list = []
     sent_length_list = []
-    with open(data_path) as csv_file:
-        reader = csv.reader(csv_file, quotechar='"')
-        for idx, line in enumerate(reader):
-            text = ""
-            for tx in line[1:]:
-                text += tx.lower()
-                text += " "
+    with open(data_path) as file:
+        lines = file.readlines()
+        for idx, line in enumerate(lines):
+            js = json.loads(line)
+            text = js["text"]
             sent_list = sent_tokenize(text)
             sent_length_list.append(len(sent_list))
 
@@ -67,10 +60,6 @@ def get_max_lengths(data_path):
 
     return sorted_word_length[int(0.8*len(sorted_word_length))], sorted_sent_length[int(0.8*len(sorted_sent_length))]
 
-if __name__ == "__main__":
-    word, sent = get_max_lengths("../data/test.csv")
-    print (word)
-    print (sent)
 
 
 
